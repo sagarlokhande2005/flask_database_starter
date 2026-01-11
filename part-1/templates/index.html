@@ -33,6 +33,7 @@
                 <td>{{ student['name'] }}</td>
                 <td>{{ student['email'] }}</td>
                 <td>{{ student['course'] }}</td>
+                <td><a href="/delete/{{ student.id }}">Delete</a></td>
             </tr>
             {% endfor %}
         </table>
