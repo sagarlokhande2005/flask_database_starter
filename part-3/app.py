@@ -39,6 +39,8 @@ class Course(db.Model):  # Course table
 
     # Relationship: One Course has Many Students
     students = db.relationship('Student', backref='course', lazy=True)
+    # Relationship: One Course has Many Teachers
+    teachers = db.relationship('Teacher', backref='course', lazy=True)
 
     def __repr__(self):  # How to display this object
         return f'<Course {self.name}>'
@@ -54,7 +56,14 @@ class Student(db.Model):  # Student table
 
     def __repr__(self):
         return f'<Student {self.name}>'
+class Teacher(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
 
+    def __repr__(self):
+        return f'<Teacher {self.name}>'
 
 # =============================================================================
 # ROUTES - Using ORM instead of raw SQL
@@ -80,19 +89,18 @@ def add_student():
         name = request.form['name']
         email = request.form['email']
         course_id = request.form['course_id']
+        teacher_id = request.form['teacher_id']
 
-        # OLD WAY: conn.execute('INSERT INTO students...')
-        # NEW WAY:
-        new_student = Student(name=name, email=email, course_id=course_id)  # Create object
-        db.session.add(new_student)  # Add to session
-        db.session.commit()  # Save to database
+        new_student = Student(name=name, email=email, course_id=course_id)
+        db.session.add(new_student)
+        db.session.commit()
 
         flash('Student added successfully!', 'success')
         return redirect(url_for('index'))
 
-    courses = Course.query.all()  # Get courses for dropdown
-    return render_template('add.html', courses=courses)
-
+    courses = Course.query.all()
+    teachers = Teacher.query.all()  # <-- Pass teachers too
+    return render_template('add_student.html', courses=courses, teachers=teachers)
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 def edit_student(id):
@@ -103,7 +111,7 @@ def edit_student(id):
     if request.method == 'POST':
         student.name = request.form['name']  # Just update the object
         student.email = request.form['email']
-        student.course_id = request.form['course_id']
+        student.course_id = int(request.form['course_id'])
 
         db.session.commit()  # Save changes
         flash('Student updated!', 'success')
@@ -123,6 +131,7 @@ def delete_student(id):
     return redirect(url_for('index'))
 
 
+
 @app.route('/add-course', methods=['GET', 'POST'])
 def add_course():
     if request.method == 'POST':
@@ -137,10 +146,57 @@ def add_course():
         return redirect(url_for('courses'))
 
     return render_template('add_course.html')
-
-
 # =============================================================================
-# CREATE TABLES AND ADD SAMPLE DATA
+@app.route('/teachers')
+def teachers():
+    teachers = Teacher.query.all()
+    return render_template('teachers.html', teachers=teachers)
+
+@app.route('/add-teacher', methods=['GET', 'POST'])  # CHANGED FROM '/teachers'
+def add_teacher():  # CHANGED FROM 'add_teachers' (removed 's')
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        course_id = int(request.form['course_id'])
+        # Check for duplicate email
+        if Teacher.query.filter_by(email=email).first():
+            flash('A teacher with this email already exists.', 'danger')
+        elif not name or not email or not course_id:
+            flash('All fields are required.', 'danger')
+        else:
+            try:
+                new_teacher = Teacher(name=name, email=email, course_id=course_id)
+                db.session.add(new_teacher)
+                db.session.commit()
+                flash('Teacher added!', 'success')
+                return redirect(url_for('teachers'))
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error adding teacher: {str(e)}', 'danger')
+    courses = Course.query.all()
+    return render_template('add_teacher.html', courses=courses)
+
+# @app.route('/teachers')
+# def teachers():
+#     teachers = Teacher.query.all()
+#     return render_template('teachers.html', teachers=teachers)
+
+
+# @app.route('/teachers', methods=['GET', 'POST'])
+# def add_teachers():
+#     if request.method == 'POST':
+#         name = request.form['name']
+#         email = request.form['email']
+#         course_id = request.form['course_id']
+
+#         new_teacher = Teacher(name=name, email=email, course_id=course_id)
+#         db.session.add(new_teacher)
+#         db.session.commit()
+
+#         flash('Teacher added!', 'success')
+#         return redirect(url_for('teachers'))
+#     courses = Course.query.all()
+#     return render_template('add_teacher.html', courses=courses)
 # =============================================================================
 
 def init_db():
@@ -201,4 +257,4 @@ if __name__ == '__main__':
 # 1. Add a `Teacher` model with a relationship to Course
 # 2. Try different query methods: `filter()`, `order_by()`, `limit()`
 #
-# =============================================================================
+# ===============
